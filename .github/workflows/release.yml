@@ -123,6 +123,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Prepare Tauri signing key
+        if: runner.os != 'macOS'
         shell: bash
         run: |
           # 调试：检查 Secret 是否存在
@@ -179,7 +180,7 @@ jobs:
           echo "✅ Tauri signing key prepared"
 
       - name: Import Apple signing certificate
-        if: runner.os == 'macOS'
+        if: false
         shell: bash
         run: |
           set -euo pipefail
@@ -224,30 +225,10 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         timeout-minutes: 60
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          max_attempts=3
-          for attempt in $(seq 1 "$max_attempts"); do
-            echo "=== macOS build/notarization attempt ${attempt}/${max_attempts} ==="
-            if pnpm tauri build --target universal-apple-darwin; then
-              echo "✅ macOS build/notarization succeeded"
-              exit 0
-            fi
-
-            if [ "$attempt" -eq "$max_attempts" ]; then
-              echo "❌ macOS build/notarization failed after ${max_attempts} attempts" >&2
-              exit 1
-            fi
-
-            sleep_seconds=$((attempt * 60))
-            echo "⚠️ macOS build/notarization failed, retrying in ${sleep_seconds}s..."
-            sleep "$sleep_seconds"
-          done
+          echo "=== macOS unsigned build ==="
+          pnpm tauri build --target universal-apple-darwin
 
       - name: Build Tauri App (Windows)
         if: runner.os == 'Windows'
@@ -275,48 +256,28 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"  # e.g., v3.5.0
 
           # Locate bundle artifacts
-          TAR_GZ=""; APP_PATH=""
+          APP_PATH=""
           for path in \
             "src-tauri/target/universal-apple-darwin/release/bundle/macos" \
             "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" \
             "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" \
             "src-tauri/target/release/bundle/macos"; do
             if [ -d "$path" ]; then
-              [ -z "$TAR_GZ" ]   && TAR_GZ=$(find "$path" -maxdepth 1 -name "*.tar.gz" -type f | head -1 || true)
               [ -z "$APP_PATH" ] && APP_PATH=$(find "$path" -maxdepth 1 -name "*.app" -type d | head -1 || true)
             fi
           done
 
-          if [ -z "$TAR_GZ" ]; then
-            echo "❌ No macOS .tar.gz updater artifact found" >&2
-            exit 1
-          fi
           if [ -z "$APP_PATH" ]; then
             echo "❌ No .app found" >&2
             exit 1
           fi
 
-          # Staple notarization ticket to .app (Tauri already notarized it)
-          xcrun stapler staple "$APP_PATH"
-          echo "✅ .app stapled"
-
-          # 1) Collect .tar.gz (updater artifact)
-          NEW_TAR_GZ="Duoyuanx-switch-${VERSION}-macOS.tar.gz"
-          cp "$TAR_GZ" "release-assets/$NEW_TAR_GZ"
-          [ -f "$TAR_GZ.sig" ] && cp "$TAR_GZ.sig" "release-assets/$NEW_TAR_GZ.sig" || echo ".sig for macOS not found yet"
-          echo "macOS updater artifact copied: $NEW_TAR_GZ"
-
-          # 2) Collect .app as zip
+          # Collect .app as zip (unsigned build; updater artifacts disabled)
           NEW_ZIP="Duoyuanx-switch-${VERSION}-macOS.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release-assets/$NEW_ZIP"
           echo "macOS zip ready: $NEW_ZIP"
 
           # 3) Create styled DMG with create-dmg (Tauri's built-in DMG styling doesn't work on CI)
-          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-            echo "❌ APPLE_SIGNING_IDENTITY is missing before DMG creation" >&2
-            exit 1
-          fi
-
           HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
           NEW_DMG="Duoyuanx-switch-${VERSION}-macOS.dmg"
           DMG_STAGE_DIR="$RUNNER_TEMP/dmg-stage"
@@ -333,7 +294,6 @@ jobs:
             --icon "多元探索-switch.app" 180 220 \
             --hide-extension "多元探索-switch.app" \
             --app-drop-link 480 220 \
-            --codesign "$APPLE_SIGNING_IDENTITY" \
             --no-internet-enable \
             "release-assets/$NEW_DMG" \
             "$DMG_STAGE_DIR"
@@ -342,7 +302,7 @@ jobs:
           echo "✅ Styled DMG created: $NEW_DMG"
 
       - name: Notarize macOS DMG
-        if: runner.os == 'macOS'
+        if: false
         shell: bash
         timeout-minutes: 30
         env:
@@ -384,7 +344,7 @@ jobs:
           done
 
       - name: Verify macOS code signing and notarization
-        if: runner.os == 'macOS'
+        if: false
         shell: bash
         run: |
           set -euo pipefail
@@ -566,7 +526,7 @@ jobs:
           find src-tauri/target -maxdepth 4 -type f -name "*.*" 2>/dev/null || true
 
       - name: Clean up Apple signing keychain
-        if: runner.os == 'macOS' && always()
+        if: false
         shell: bash
         run: |
           if [ -n "${ORIGINAL_DEFAULT_KEYCHAIN:-}" ]; then
