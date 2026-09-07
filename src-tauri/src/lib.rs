@@ -7,6 +7,7 @@ mod claude_plugin;
 mod codex_config;
 mod codex_history_migration;
 mod codex_state_db;
+mod duoyuanx;
 mod commands;
 mod config;
 mod database;
@@ -763,6 +764,13 @@ pub fn run() {
                 }
                 Ok(_) => {}
                 Err(e) => log::warn!("✗ Failed to seed official providers: {e}"),
+            }
+
+            // 多元探索品牌版：在共享 ~/.cc-switch 数据库中幂等创建默认供应商。
+            // 供应商只写入数据库，不在启动阶段强行覆盖用户当前 live 配置；
+            // 前端首次启动向导会在用户填写 Key 后再切换并写入 live。
+            if let Err(e) = crate::duoyuanx::ensure_default_providers(&app_state.db) {
+                log::warn!("✗ Failed to seed Duoyuanx providers: {e}");
             }
 
             {

@@ -1,0 +1,21 @@
+{
+  "brandName": "多元探索",
+  "usage": {
+    "name": "duoyuanx-按量",
+    "baseUrl": "https://duoyuanx.com/v1",
+    "keyHint": "请填写 duoyuanx.com 站点令牌管理处密钥。"
+  },
+  "subscription": {
+    "name": "duoyuanx-订阅套餐",
+    "claudeBaseUrl": "https://chat.duoyuanx.com/api/cc",
+    "codexBaseUrl": "https://chat.duoyuanx.com/api/codex",
+    "claudeKeyHint": "请填写 chat.duoyuanx.com 站点 Claude 端侧代码处 duoyuanx 分组密钥。",
+    "codexKeyHint": "请填写 chat.duoyuanx.com 站点 Codex 端侧代码处 Codex 分组密钥。"
+  },
+  "codingPlan": {
+    "name": "duoyuanx-订阅套餐-coding_plan",
+    "baseUrl": "https://chat.duoyuanx.com/api/codex",
+    "keyHint": "请填写 chat.duoyuanx.com 站点 Codex 端侧代码处 CodingPlan 分组密钥。",
+    "models": ["glm-5.3", "deepseek-v4-pro", "kimi-k3"]
+  }
+}
