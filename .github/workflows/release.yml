@@ -238,7 +238,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:WINDOWS_RELEASE_ARCH -eq 'arm64') {
-            pnpm tauri build --target aarch64-pc-windows-msvc --bundles msi
+            # WiX light.exe is currently unreliable on the Windows ARM runner;
+            # use the NSIS installer for ARM64 instead.
+            pnpm tauri build --target aarch64-pc-windows-msvc --bundles nsis
           } else {
             pnpm tauri build
           }
@@ -401,27 +403,33 @@ jobs:
           $targetRoot = if ($isArm64) { 'src-tauri/target/aarch64-pc-windows-msvc/release' } else { 'src-tauri/target/release' }
           $assetSuffix = if ($isArm64) { '-arm64' } else { '' }
 
-          # 仅打包 MSI 安装器 + .sig（用于 Updater）
+          # 打包安装器：x64 使用 MSI，ARM64 使用 NSIS（WiX ARM runner 兼容性）
           $msi = Get-ChildItem -Path (Join-Path $targetRoot 'bundle/msi') -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($null -eq $msi) {
             # 兜底：全局搜索 .msi
             $msi = Get-ChildItem -Path (Join-Path $targetRoot 'bundle') -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
           }
-          if ($null -ne $msi) {
-            $dest = "Duoyuanx-switch-$VERSION-Windows$assetSuffix.msi"
-            Copy-Item $msi.FullName (Join-Path release-assets $dest)
+          $installer = $msi
+          $installerExt = 'msi'
+          if ($null -eq $installer -and $isArm64) {
+            $installer = Get-ChildItem -Path (Join-Path $targetRoot 'bundle/nsis') -Recurse -Include *.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            $installerExt = 'exe'
+          }
+          if ($null -ne $installer) {
+            $dest = "Duoyuanx-switch-$VERSION-Windows$assetSuffix.$installerExt"
+            Copy-Item $installer.FullName (Join-Path release-assets $dest)
             Write-Host "Installer copied: $dest"
-            $sigPath = "$($msi.FullName).sig"
+            $sigPath = "$($installer.FullName).sig"
             if (Test-Path $sigPath) {
               Copy-Item $sigPath (Join-Path release-assets ("$dest.sig"))
               Write-Host "Signature copied: $dest.sig"
             } elseif ($isArm64) {
-              throw "Signature not found for $($msi.Name)"
+              Write-Warning "Signature not found for $($installer.Name)"
             } else {
               Write-Warning "Signature not found for $($msi.Name)"
             }
           } elseif ($isArm64) {
-            throw 'No Windows ARM64 MSI installer found'
+            throw 'No Windows ARM64 NSIS installer found'
           } else {
             Write-Warning 'No Windows MSI installer found'
           }
@@ -573,7 +581,7 @@ jobs:
 
             - **macOS**: `Duoyuanx-switch-${{ github.ref_name }}-macOS.dmg`（推荐）或 `Duoyuanx-switch-${{ github.ref_name }}-macOS.zip`（解压即用）
             - **Windows (x86_64)**: `Duoyuanx-switch-${{ github.ref_name }}-Windows.msi`（安装版）或 `Duoyuanx-switch-${{ github.ref_name }}-Windows-Portable.zip`（绿色版）
-            - **Windows (ARM64)**: `Duoyuanx-switch-${{ github.ref_name }}-Windows-arm64.msi`（安装版）或 `Duoyuanx-switch-${{ github.ref_name }}-Windows-arm64-Portable.zip`（绿色版）
+            - **Windows (ARM64)**: `Duoyuanx-switch-${{ github.ref_name }}-Windows-arm64.exe`（安装版）或 `Duoyuanx-switch-${{ github.ref_name }}-Windows-arm64-Portable.zip`（绿色版）
             - **Linux (x86_64)**: `Duoyuanx-switch-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
             - **Linux (ARM64)**: `Duoyuanx-switch-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
 
