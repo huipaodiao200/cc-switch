@@ -14,17 +14,23 @@ use serde::Deserialize;
 struct DuoyuanxConfig {
     usage: RouteConfig,
     subscription: SubscriptionConfig,
-    codingPlan: CodingPlanConfig,
+    coding_plan: CodingPlanConfig,
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RouteConfig { name: String, baseUrl: String, keyHint: String }
+struct RouteConfig { name: String, base_url: String, key_hint: String }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SubscriptionConfig { name: String, claudeBaseUrl: String, codexBaseUrl: String, claudeKeyHint: String, codexKeyHint: String }
+struct SubscriptionConfig {
+    name: String,
+    claude_base_url: String,
+    codex_base_url: String,
+    claude_key_hint: String,
+    codex_key_hint: String,
+}
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CodingPlanConfig { name: String, baseUrl: String, keyHint: String, models: Vec<String> }
+struct CodingPlanConfig { name: String, base_url: String, key_hint: String, models: Vec<String> }
 
 fn config() -> DuoyuanxConfig {
     serde_json::from_str(include_str!("../../src/config/duoyuanxConfig.json"))
@@ -34,10 +40,6 @@ fn config() -> DuoyuanxConfig {
 const USAGE_ID: &str = "duoyuanx-usage";
 const SUBSCRIPTION_ID: &str = "duoyuanx-subscription";
 const CODING_PLAN_ID: &str = "duoyuanx-subscription-coding-plan";
-
-const USAGE_NAME: &str = "duoyuanx-按量";
-const SUBSCRIPTION_NAME: &str = "duoyuanx-订阅套餐";
-const CODING_PLAN_NAME: &str = "duoyuanx-订阅套餐-coding_plan";
 
 fn claude_provider(id: &str, name: &str, base_url: &str, hint: &str) -> Provider {
     let mut p = Provider::with_id(
@@ -59,7 +61,8 @@ fn claude_provider(id: &str, name: &str, base_url: &str, hint: &str) -> Provider
 
 fn codex_provider(id: &str, name: &str, base_url: &str, hint: &str, chat: bool, models: &[String]) -> Provider {
     let config = format!(
-        "model_provider = \"custom\"\nmodel = \"gpt-5.6-sol\"\nmodel_reasoning_effort = \"high\"\ndisable_response_storage = true\n\n[model_providers.custom]\nname = \"{name}\"\nbase_url = \"{base_url}\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+        "model_provider = \"custom\"\nmodel = \"gpt-5.6-sol\"\nmodel_reasoning_effort = \"high\"\ndisable_response_storage = true\n\n[model_providers.custom]\nname = \"{name}\"\nbase_url = \"{base_url}\"\nwire_api = \"{wire_api}\"\nrequires_openai_auth = true",
+        wire_api = if chat { "chat" } else { "responses" }
     );
     let settings = if !models.is_empty() {
         json!({
@@ -85,11 +88,11 @@ pub fn ensure_default_providers(db: &Database) -> Result<usize, crate::error::Ap
     let cfg = config();
     let mut inserted = 0;
     let seeds = [
-        (AppType::Claude, claude_provider(USAGE_ID, &cfg.usage.name, &cfg.usage.baseUrl, &cfg.usage.keyHint)),
-        (AppType::Codex, codex_provider(USAGE_ID, &cfg.usage.name, &cfg.usage.baseUrl, &cfg.usage.keyHint, false, &[])),
-        (AppType::Claude, claude_provider(SUBSCRIPTION_ID, &cfg.subscription.name, &cfg.subscription.claudeBaseUrl, &cfg.subscription.claudeKeyHint)),
-        (AppType::Codex, codex_provider(SUBSCRIPTION_ID, &cfg.subscription.name, &cfg.subscription.codexBaseUrl, &cfg.subscription.codexKeyHint, false, &[])),
-        (AppType::Codex, codex_provider(CODING_PLAN_ID, &cfg.codingPlan.name, &cfg.codingPlan.baseUrl, &cfg.codingPlan.keyHint, true, &cfg.codingPlan.models)),
+        (AppType::Claude, claude_provider(USAGE_ID, &cfg.usage.name, &cfg.usage.base_url, &cfg.usage.key_hint)),
+        (AppType::Codex, codex_provider(USAGE_ID, &cfg.usage.name, &cfg.usage.base_url, &cfg.usage.key_hint, false, &[])),
+        (AppType::Claude, claude_provider(SUBSCRIPTION_ID, &cfg.subscription.name, &cfg.subscription.claude_base_url, &cfg.subscription.claude_key_hint)),
+        (AppType::Codex, codex_provider(SUBSCRIPTION_ID, &cfg.subscription.name, &cfg.subscription.codex_base_url, &cfg.subscription.codex_key_hint, false, &[])),
+        (AppType::Codex, codex_provider(CODING_PLAN_ID, &cfg.coding_plan.name, &cfg.coding_plan.base_url, &cfg.coding_plan.key_hint, true, &cfg.coding_plan.models)),
     ];
     for (app, provider) in seeds {
         if db.get_provider_by_id(&provider.id, app.as_str())?.is_none() {
